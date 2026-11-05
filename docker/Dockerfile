@@ -1,7 +1,6 @@
 FROM ubuntu:26.04
 # solidcraft package version (e.g. 0.26.1-1); empty installs the repo's newest.
 ARG SOLIDCRAFT_VERSION
-ARG MCP_PROXY_VERSION
 ENV UBUNTU_VERSION=26.04
 
 ENV DEB_REPO=https://linuxrrze.github.io/deb-repos
@@ -16,7 +15,7 @@ set -e
   echo 'path-exclude=/usr/share/info/*'; } > /etc/dpkg/dpkg.cfg.d/01_nodoc
 
 apt update && apt -y dist-upgrade
-apt install -y ca-certificates curl python3 python3-venv tini --no-install-recommends
+apt install -y ca-certificates curl python3 tini --no-install-recommends
 
 # Add the solidcraft repo. mirror+https: apt reads the indexes from github.io
 # and fetches the .deb straight from the GitHub release assets.
@@ -50,20 +49,15 @@ fi
 
 rm -rf /var/lib/apt/lists/*
 
-# mcp-proxy (stdio -> streamable HTTP/SSE) in its own venv
-python3 -m venv /opt/mcp-proxy
-/opt/mcp-proxy/bin/pip install --no-cache-dir "mcp-proxy${MCP_PROXY_VERSION:+==$MCP_PROXY_VERSION}"
-ln -s /opt/mcp-proxy/bin/mcp-proxy /usr/local/bin/mcp-proxy
-
 # Runs under an arbitrary compose `user:` (the codingenv PUID) -- give it a
 # writable HOME for solidcraft's config/scratch dirs.
-mkdir -p /home/mcp /etc/mcp-proxy
+mkdir -p /home/mcp /etc/mcp-gateway
 chmod 1777 /home/mcp
 
 # ubuntu:26.04 ships /usr/bin/pebble (Canonical's container init) as a plain
 # unregistered binary built with Go 1.26.5, which carries unpatched HIGH CVEs
 # (e.g. CVE-2026-33818). This image never runs pebble -- its entrypoint
-# starts mcp-proxy directly -- so drop it instead of scanning around it.
+# starts mcp-gateway directly -- so drop it instead of scanning around it.
 # Re-evaluate (and re-add) if an ubuntu:26.04 point release ships pebble
 # built with Go >= 1.26.6 and it becomes load-bearing.
 rm -f /usr/bin/pebble
@@ -74,8 +68,8 @@ ENV HOME=/home/mcp \
     MCP_SERVICE_HOST=solidcraft-mcp \
     MCP_SERVERS_FILE=/tmp/mcp-servers.json
 
-COPY files/app-args.conf /etc/mcp-proxy/
-COPY --chmod=755 files/mcp-servers /usr/local/bin/
+COPY files/app-args.conf /etc/mcp-gateway/
+COPY --chmod=755 files/mcp-servers files/mcp-gateway /usr/local/bin/
 COPY --chmod=755 files/entrypoint.sh /
 
 # Probe solidcraft-cli once at build time (same mechanism as storytold-mcp):
@@ -83,12 +77,10 @@ COPY --chmod=755 files/entrypoint.sh /
 # The probe's WORK_DIR is a throwaway.
 RUN WORK_DIR=/tmp/mcp-probe mcp-servers detect \
  && rm -rf /tmp/mcp-probe /home/mcp/* /home/mcp/.[!.]* \
- && { dpkg-query -W -f='${Package}=${Version}\n' solidcraft; \
-      echo "mcp-proxy=$(/opt/mcp-proxy/bin/pip show mcp-proxy | awk '$1=="Version:"{print $2}')"; } \
-    > /etc/mcp-proxy/versions.txt
+ && dpkg-query -W -f='${Package}=${Version}\n' solidcraft > /etc/mcp-gateway/versions.txt
 
 WORKDIR /home/sandbox/work
 EXPOSE 8080/tcp
 
 ENTRYPOINT [ "tini", "--", "/entrypoint.sh" ]
-HEALTHCHECK --start-period=60s CMD curl -fsS http://127.0.0.1:8080/status || exit 1
+HEALTHCHECK --start-period=60s CMD curl -fsS http://127.0.0.1:8080/healthz || exit 1

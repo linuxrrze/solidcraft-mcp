@@ -21,7 +21,7 @@ env:
   SOLIDCRAFT_REPO: https://linuxrrze.github.io/deb-repos/solidcraft
   REGISTRY: git.linux-ng.de
   IMAGE: git.linux-ng.de/marcel/solidcraft-mcp
-  # `solidcraft=<version>` and `mcp-proxy=<version>` lines.
+  # `solidcraft=<version>` line.
   VERSION_FILE: solidcraft-mcp/.solidcraft-mcp-version
   # Digest of the Dockerfile's base image (ubuntu:26.04) the last build used.
   BASE_DIGEST_FILE: solidcraft-mcp/.solidcraft-mcp-base-digest
@@ -33,11 +33,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Determine latest solidcraft + mcp-proxy versions
+      - name: Determine latest solidcraft version
         id: check
         run: |
           set -euo pipefail
-          command -v jq >/dev/null || (apt-get update -qq && apt-get install -y -qq jq)
           curl -sf "$SOLIDCRAFT_REPO/dists/stable/main/binary-amd64/Packages" -o /tmp/Packages
 
           # The index keeps several versions and isn't guaranteed to be in
@@ -45,34 +44,24 @@ jobs:
           # no SIGPIPE under pipefail).
           SOLIDCRAFT=$(awk '/^Package:/ { p=$2 } /^Version:/ && p == "solidcraft" { print $2 }' /tmp/Packages \
             | sort -V | tail -1)
-          MCP_PROXY=$(curl -sf https://pypi.org/pypi/mcp-proxy/json | jq -r .info.version)
 
           if [ -z "$SOLIDCRAFT" ]; then
             echo "::error::could not find 'solidcraft' package in repo Packages file" >&2
             exit 1
           fi
-          if [ -z "$MCP_PROXY" ] || [ "$MCP_PROXY" = "null" ]; then
-            echo "::error::could not determine latest mcp-proxy version" >&2
-            exit 1
-          fi
 
           SOLIDCRAFT_CURRENT=$(awk -F= '$1=="solidcraft"{print $2}' "$VERSION_FILE" 2>/dev/null); SOLIDCRAFT_CURRENT=${SOLIDCRAFT_CURRENT:-none}
-          MCP_PROXY_CURRENT=$(awk -F= '$1=="mcp-proxy"{print $2}' "$VERSION_FILE" 2>/dev/null); MCP_PROXY_CURRENT=${MCP_PROXY_CURRENT:-none}
 
           # Docker tags can't contain ':' or '+' -- sanitize the dpkg version
-          # for the tag, keep the raw one for change detection. mcp-proxy is
-          # not part of the tag: a bump of only that re-publishes the same
-          # tag (the dated tag keeps the previous build pullable).
+          # for the tag, keep the raw one for change detection.
           TAG=$(echo "$SOLIDCRAFT" | sed 's/^[0-9]\+://' | tr '+' '-')
 
           echo "solidcraft: current=$SOLIDCRAFT_CURRENT latest=$SOLIDCRAFT"
-          echo "mcp-proxy:  current=$MCP_PROXY_CURRENT latest=$MCP_PROXY"
           echo "tag=$TAG"
 
           echo "solidcraft=$SOLIDCRAFT" >> "$GITHUB_OUTPUT"
-          echo "mcp_proxy=$MCP_PROXY" >> "$GITHUB_OUTPUT"
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
-          if [ "$SOLIDCRAFT" != "$SOLIDCRAFT_CURRENT" ] || [ "$MCP_PROXY" != "$MCP_PROXY_CURRENT" ]; then
+          if [ "$SOLIDCRAFT" != "$SOLIDCRAFT_CURRENT" ]; then
             echo "changed=true" >> "$GITHUB_OUTPUT"
           else
             echo "changed=false" >> "$GITHUB_OUTPUT"
@@ -104,7 +93,6 @@ jobs:
           # not in the base would never land.
           docker build --pull --no-cache \
             --build-arg SOLIDCRAFT_VERSION="${{ steps.check.outputs.solidcraft }}" \
-            --build-arg MCP_PROXY_VERSION="${{ steps.check.outputs.mcp_proxy }}" \
             -t "$IMAGE:${{ steps.check.outputs.tag }}" \
             -t "$IMAGE:latest" \
             solidcraft-mcp/docker
@@ -148,12 +136,11 @@ jobs:
       - name: Record built version
         if: github.event_name != 'schedule' || steps.check.outputs.changed == 'true' || steps.base.outputs.changed == 'true'
         run: |
-          printf '%s\n' "solidcraft=${{ steps.check.outputs.solidcraft }}" "mcp-proxy=${{ steps.check.outputs.mcp_proxy }}" > "$VERSION_FILE"
+          printf '%s\n' "solidcraft=${{ steps.check.outputs.solidcraft }}" > "$VERSION_FILE"
           echo "${{ steps.base.outputs.digest }}" > "$BASE_DIGEST_FILE"
           # keep solidcraft-mcp/.env.sample (template for the local .env) in sync
           sed -i \
             -e 's/^SOLIDCRAFT_VERSION=.*/SOLIDCRAFT_VERSION=${{ steps.check.outputs.solidcraft }}/' \
-            -e 's/^MCP_PROXY_VERSION=.*/MCP_PROXY_VERSION=${{ steps.check.outputs.mcp_proxy }}/' \
             "$ENV_FILE"
           git config user.email "gitea-actions@linux-ng.de"
           git config user.name "gitea-actions"
@@ -165,7 +152,7 @@ jobs:
             exit 0
           fi
           if [ "${{ steps.check.outputs.changed }}" = true ]; then
-            git commit -m "solidcraft-mcp: bump tracked versions to solidcraft=${{ steps.check.outputs.solidcraft }} mcp-proxy=${{ steps.check.outputs.mcp_proxy }}" \
+            git commit -m "solidcraft-mcp: bump tracked version to solidcraft=${{ steps.check.outputs.solidcraft }}" \
               -m "base image: ${{ steps.base.outputs.digest }}"
           else
             git commit -m "solidcraft-mcp: rebuild on updated base image ${{ steps.base.outputs.digest }}"
