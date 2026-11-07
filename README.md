@@ -10,7 +10,8 @@ are documented there.
 Based on `ubuntu:26.04`, with `solidcraft` installed from the `solidcraft`
 apt repo of [linuxrrze/deb-repos](https://github.com/linuxrrze/deb-repos).
 `solidcraft-cli mcp --headless` is a stdio-only MCP server; `mcp-gateway`
-serves it on port 8080, one `solidcraft-cli` process per MCP session:
+serves it on port 8080, one `solidcraft-cli` process per MCP session,
+started on its first tool call (discovery is answered from a cache):
 
 | Endpoint | |
 | --- | --- |

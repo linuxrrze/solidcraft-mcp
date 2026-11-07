@@ -74,8 +74,10 @@ COPY --chmod=755 files/entrypoint.sh /
 
 # Probe solidcraft-cli once at build time (same mechanism as storytold-mcp):
 # a build whose solidcraft-cli doesn't answer MCP fails here, not at runtime.
-# The probe's WORK_DIR is a throwaway.
-RUN WORK_DIR=/tmp/mcp-probe mcp-servers detect \
+# The probe's WORK_DIR is a throwaway; the discovery cache (initialize +
+# tool list, so mcp-gateway starts a server only on first use) is probed
+# with the real WORK_DIR, as some apps name their allowed folders in it.
+RUN MCP_CACHE_WORK_DIR="$WORK_DIR" WORK_DIR=/tmp/mcp-probe mcp-servers detect \
  && rm -rf /tmp/mcp-probe /home/mcp/* /home/mcp/.[!.]* \
  && dpkg-query -W -f='${Package}=${Version}\n' solidcraft > /etc/mcp-gateway/versions.txt
 
