@@ -1,9 +1,11 @@
 # solidcraft-mcp
 
 Docker image serving the [SolidCraft](https://github.com/tangency-labs/solidcraft)
-MCP server over HTTP, built via Gitea Actions -- see
-[`.gitea/workflows/solidcraft-mcp-rebuild.yml`](../.gitea/workflows/solidcraft-mcp-rebuild.yml).
-Part of the Craft MCP stack whose hub is [`storytold-mcp/`](../storytold-mcp/):
+MCP server over HTTP, built via GitHub Actions and published as
+`ghcr.io/linuxrrze/solidcraft-mcp` -- see
+[`.github/workflows/build.yml`](.github/workflows/build.yml).
+Part of the Craft MCP stack whose hub is
+[`storytold-mcp`](https://github.com/linuxrrze/storytold-mcp):
 the compose sample, the runtime `.env` knobs and the codingenv client setup
 are documented there.
 
@@ -33,18 +35,20 @@ Screenshots render on the CPU (Mesa lavapipe).
 | File | Used by CI? | Purpose |
 | --- | --- | --- |
 | `docker/Dockerfile` | yes | Adds the solidcraft repo and installs `solidcraft` (`ARG SOLIDCRAFT_VERSION` pins it; empty/unset installs the repo's newest) plus the Mesa libs, and probes `solidcraft-cli mcp` at build time. |
-| `docker/files/mcp-gateway` | yes | HTTP gateway -- identical copy of `storytold-mcp/docker/files/mcp-gateway`. |
-| `docker/files/mcp-servers` | yes | Detect/render/client-config helper -- identical copy of `storytold-mcp/docker/files/mcp-servers`. |
+| `docker/files/mcp-gateway` | yes | HTTP gateway -- identical copy of storytold-mcp's `docker/files/mcp-gateway`. |
+| `docker/files/mcp-servers` | yes | Detect/render/client-config helper -- identical copy of storytold-mcp's `docker/files/mcp-servers`. |
 | `docker/files/app-args.conf` | yes | `solidcraft --headless --allow-path $WORK_DIR`. |
 | `docker/files/entrypoint.sh` | yes | Identical copy of storytold-mcp's: checks the work dir, renders the config, execs mcp-gateway. |
 | `.solidcraft-mcp-version` | yes | `solidcraft=<version>` CI last built. Updated automatically by CI. |
 | `.solidcraft-mcp-base-digest` | yes | Registry digest of the `ubuntu:26.04` base image the last build used. Updated automatically by CI. |
 | `.env.sample` | yes (build) | `SOLIDCRAFT_VERSION` (kept in sync by CI) and `TZ`. Runtime settings are in the hub's `.env.sample`. No secrets. |
+| `.github/workflows/build.yml`, `.github/scripts/` | yes | The CI pipeline and its helpers: base-image digest lookup, startup banner, pinned Trivy scan. |
 
 ## Build & version tracking
 
 Same as storytold-mcp (every 3 hours, manual dispatch, pushes touching
-`solidcraft-mcp/docker/**` or the workflow), tracking the newest
+`docker/**` or the workflow), tracking the newest
 `solidcraft` in the repo's `binary-amd64/Packages` (via `sort -V`) and
 the base image digest. Tags: the `solidcraft` version (epoch stripped,
-`+` -> `-`), `<version>-<YYYYMMDD>` (rollback) and `latest`.
+`+` -> `-`), `<version>-<YYYYMMDD>` (rollback) and `latest`, pushed to
+`ghcr.io/linuxrrze/solidcraft-mcp` with the workflow's `GITHUB_TOKEN`.
