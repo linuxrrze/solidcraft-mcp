@@ -49,7 +49,7 @@ fi
 
 rm -rf /var/lib/apt/lists/*
 
-# Runs under an arbitrary compose `user:` (the codingenv PUID) -- give it a
+# Runs under an arbitrary compose `user:` (the agent-env PUID) -- give it a
 # writable HOME for solidcraft's config/scratch dirs.
 mkdir -p /home/mcp /etc/mcp-gateway
 chmod 1777 /home/mcp

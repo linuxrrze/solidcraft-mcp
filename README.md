@@ -6,7 +6,7 @@ MCP server over HTTP, built via GitHub Actions and published as
 [`.github/workflows/build.yml`](.github/workflows/build.yml).
 Part of the Craft MCP stack whose hub is
 [`storytold-mcp`](https://github.com/linuxrrze/storytold-mcp):
-the compose sample, the runtime `.env` knobs and the codingenv client setup
+the compose sample, the runtime `.env` knobs and the agent-env client setup
 are documented there.
 
 Based on `ubuntu:26.04`, with `solidcraft` installed from the `solidcraft`
